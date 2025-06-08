@@ -1,7 +1,3 @@
-Sure! Here's the complete, ready-to-copy `README.md` for your **Smart Network Controller (SNC)** project:
-
----
-
 # 🚦 Smart Network Controller (SNC)
 
 **Smart Network Controller (SNC)** is a modular, framework-agnostic request management system built in TypeScript. It intelligently manages API calls in modern web applications by introducing priority-based queuing, in-memory and persistent caching, controlled concurrency, and smooth orchestration — all aimed at reducing network overhead and improving responsiveness.
@@ -183,6 +179,3 @@ MIT © Vishal Varshney
 **Vishal Varshney**
 Java Backend Developer & Systems Engineer
 Crafting clean, smart, and scalable infrastructure 🚀
-
-
-Let me know if you'd like to include any badges (e.g. build status, license, etc.), or split the README into `docs/` for advanced usage examples.
