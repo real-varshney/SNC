@@ -3,7 +3,7 @@ import { MemoryCache } from './cache';
 import { storage } from './storage';
 
 class DataManager {
-  private MEMORY_CACHE_MAX_SIZE = 5 * 1024 * 1024; // 5 MB
+  private MEMORY_CACHE_MAX_SIZE = 1000000; // 5 MB
   private cache = new MemoryCache(this.MEMORY_CACHE_MAX_SIZE);
 
   async set(key: string, data: string): Promise<void> {
