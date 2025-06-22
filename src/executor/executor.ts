@@ -1,69 +1,105 @@
-import { GlobalQueue } from '../executionqueue';
-import type { NetworkRequest, NetworkResponse } from '../globaltype';
+import { MAX_CONCURRENT_REQUESTS } from '../config';
+import { ExecutableRequest, TransportFn } from './types';
+import { SNCRequest } from '../globalTypes';
+import { defaultTransport } from './transport'; // fetch or axios
+import { debounceMap } from '../utils';
+import { throttleMap } from '../utils';
 
-const CONCURRENCY_LIMIT = 5;
-let activeCount = 0;
+class Executor {
+  private queue: ExecutableRequest[] = [];
+  private active: number = 0;
+  private transport: TransportFn = defaultTransport;
 
-async function fetchWithTimeout(req: NetworkRequest): Promise<NetworkResponse> {
+  setTransport(fn: TransportFn) {
+    this.transport = fn;
+  }
 
-  const { url, method, headers, body } = req.originalRequest;
-  const controller = new AbortController();
-  const timeout = req.originalRequest.timeout ?? 15000;
+  async execute(request: SNCRequest): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const debounceKey = request.debounce?.key;
+      const throttleKey = request.throttle?.key;
 
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
+      if (debounceKey && debounceMap.has(debounceKey)) {
+        clearTimeout(debounceMap.get(debounceKey));
+      }
 
-  try {
-    const response = await fetch(url, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-      signal: controller.signal,
+      if (throttleKey && throttleMap.has(throttleKey)) {
+        const lastCall = throttleMap.get(throttleKey);
+        const now = Date.now();
+        const interval = request.throttle?.interval ?? 500;
+      
+        if (lastCall !== undefined && now - lastCall < interval) {
+          return reject(new Error('Throttled'));
+        }
+        throttleMap.set(throttleKey, now);
+      } else if (throttleKey) {
+        throttleMap.set(throttleKey, Date.now());
+      }
+      
+
+      const controller = new AbortController();
+
+      const task: ExecutableRequest = {
+        request,
+        controller,
+        resolve,
+        reject,
+      };
+
+      if (debounceKey) {
+        const timeout = request.debounce?.interval ?? 300;
+        debounceMap.set(
+          debounceKey,
+          setTimeout(() => this.enqueue(task), timeout)
+        );
+      } else {
+        this.enqueue(task);
+      }
     });
+  }
 
-    clearTimeout(timeoutId);
+  private enqueue(task: ExecutableRequest): void {
+    this.queue.push(task);
+    this.runQueue();
+  }
 
-    const data = await response.json();
+  private runQueue(): void {
+    while (this.active < MAX_CONCURRENT_REQUESTS && this.queue.length > 0) {
+      const task = this.queue.shift();
+      if (!task) continue;
 
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      this.active++;
+      this.process(task).finally(() => {
+        this.active--;
+        this.runQueue();
+      });
+    }
+  }
 
-    return {
-      status: response.status,
-      data,
-      headers: {},
-    };
-  } catch (err) {
-    clearTimeout(timeoutId);
-    throw err;
+  private async process({ request, controller, resolve, reject }: ExecutableRequest) {
+    const timeout = request.timeout ?? 10000;
+
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+      reject(new Error('Request Timeout'));
+    }, timeout);
+
+    try {
+      const response = await this.transport(request, controller.signal);
+      clearTimeout(timeoutId);
+      resolve(response);
+    } catch (error) {
+      clearTimeout(timeoutId);
+      reject(error);
+    }
+  }
+
+  cancelAll(): void {
+    for (const task of this.queue) {
+      task.controller.abort();
+    }
+    this.queue = [];
   }
 }
 
-async function processRequest(req: NetworkRequest) {
-  try {
-    activeCount++;
-    const res = await fetchWithTimeout(req);
-    req.resolve(res);
-  } catch (err) {
-    req.reject(err);
-  } finally {
-    activeCount--;
-    scheduleNext();
-  }
-}
-
-function scheduleNext() {
-  while (activeCount < CONCURRENCY_LIMIT && GlobalQueue.size() > 0) {
-    const nextReq = GlobalQueue.dequeue();
-    if (!nextReq) break;
-    processRequest(nextReq);
-  }
-}
-
-export function startExecutor() {
-  scheduleNext();
-}
-
-GlobalQueue.subscribe((hasData: boolean) => {
-  if (hasData) {
-    startExecutor();
-  }
-});
+export const executor = new Executor();

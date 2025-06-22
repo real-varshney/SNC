@@ -22,6 +22,14 @@ export interface SNCRequest {
   headers?: Record<string, string>;
   body?: any;
   params?: Record<string, string>;
+  debounce?: {
+    key: string;
+    interval?: number;
+  };
+  throttle?: {
+    key: string;
+    interval?: number;
+  }
 
   priority?: PriorityValue;
   tags?: string[];
