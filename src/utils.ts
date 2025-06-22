@@ -1,4 +1,4 @@
-import { NetworkRequest , SNCRequest } from './globalType';
+import { NetworkRequest , PriorityValue, SNCRequest, SNCRequestPriority } from './globalTypes';
 
 export function createNetworkRequest(
   sncRequest: SNCRequest,
@@ -41,3 +41,22 @@ function hashString(input: string): string {
   }
   return Math.abs(hash).toString(36);
 }
+
+export function normalizePriority(priority?: PriorityValue): number {
+  const DEFAULT = SNCRequestPriority.NORMAL;
+
+  if (priority === undefined || priority === null) return DEFAULT;
+
+  const num = typeof priority === 'number'
+    ? priority
+    : Number(priority);
+
+  if (Number.isNaN(num)) return DEFAULT;
+
+  return Math.max(0, Math.min(10, num));
+}
+
+
+export const debounceMap = new Map<string, NodeJS.Timeout>();
+
+export const throttleMap = new Map<string, number>();

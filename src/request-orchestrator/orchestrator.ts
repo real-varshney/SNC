@@ -1,43 +1,89 @@
-import { DataManager } from '../data-manager/manager';
-// import { Prioritiser } from '../prioritiser/prioritiser';
-// import { Executor } from '../executor/executor'; 
-import { SNCRequest } from '../globalType';
+import { SNCRequest , NetworkRequest} from '../globalTypes';
+import { prioritiser } from '../prioritisor/prioritiser';
+import { dataManager } from '../data-manager/manager';
+import { executor } from '../executor/executor';
 import { createNetworkRequest } from '../utils';
 
-export class RequestOrchestrator {
-  private dataManager: DataManager;
-  private prioritiser: Prioritiser;
-  private executor: Executor;
+class Orchestrator {
+  private activeRequests = new Map<string, NetworkRequest>();
 
-  constructor() {
-    this.dataManager = new DataManager();
-    this.prioritiser = new Prioritiser();
-    this.executor = new Executor();
+  async call(request: SNCRequest): Promise<any> {
+    return new Promise(async (resolve, reject) => {
+      const netReq = createNetworkRequest(request, resolve, reject);
+
+      this.activeRequests.set(netReq.id, netReq);
+
+      const shouldCache = request.cache ?? false;
+
+      if (shouldCache) {
+        const cachedData = await dataManager.get(request.url);
+        if (cachedData != null) {
+          this.activeRequests.delete(netReq.id);
+          return resolve(cachedData);
+        }
+      }
+
+      prioritiser.addRequest({
+        ...request,
+        meta: {
+          ...(request.meta ?? {}),
+          __networkRequestId: netReq.id,
+        },
+      });
+
+      this.processNext();
+    });
   }
 
-async handle(request: SNCRequest): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const networkRequest = createNetworkRequest(request, resolve, reject);
+  private processNext(): void {
+    const nextBatch = prioritiser.nextRequests();
 
-    const cached = this.dataManager.get(networkRequest.id);
-    if (cached) {
-      resolve(cached);
-      return;
-    }
+    for (const req of nextBatch) {
+      const requestId = req.meta?.__networkRequestId as string;
+      const netReq = this.activeRequests.get(requestId);
 
+      if (!netReq) continue;
 
-    //TODO: create a working chart of how to execute a single req. around multiple flows/
-    //TODO: make sure how to manage multiple request call from separate snc obj/
+      netReq.status = 'running';
+      netReq.timeMap.startedAt = Date.now();
 
-    this.prioritiser.schedule(networkRequest).then(() => {
-      this.executor.execute(networkRequest.originalRequest)
-        .then(async (response :any) => {
-          await this.dataManager.set(networkRequest.id, JSON.stringify(response));
-          resolve(response);
+      executor.execute(req)
+        .then(async (result) => {
+          netReq.status = 'success';
+          netReq.timeMap.completedAt = Date.now();
+
+          if (req.cache) {
+            await dataManager.set(req.url, result);
+          }
+
+          netReq.resolve(result);
+          this.activeRequests.delete(requestId);
+          prioritiser.markComplete();
         })
-        .catch(reject);
-    }).catch(reject);
-  });
+        .catch((error) => {
+          netReq.status = 'failed';
+          netReq.timeMap.failedAt = Date.now();
+          netReq.failureDetails?.push({
+            errorMessage: error?.message ?? 'Unknown error',
+            errorCode: error?.code,
+            attempt: netReq.retryCount,
+          });
+
+          netReq.reject(error);
+          this.activeRequests.delete(requestId);
+          prioritiser.markComplete();
+        });
+    }
+  }
+
+  getActiveRequest(id: string): NetworkRequest | undefined {
+    return this.activeRequests.get(id);
+  }
+
+  clear(): void {
+    this.activeRequests.clear();
+    prioritiser.clear();
+  }
 }
 
-}
+export const orchestrator = new Orchestrator();
