@@ -94,7 +94,7 @@ npm run format
 
 ## 📢 Code of Conduct
 
-We follow a **positive, inclusive, and respectful** community philosophy. Please read the [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md) before contributing.
+We follow a **positive, inclusive, and respectful** community philosophy. Please read the [`Code of Conduct`](./CODE_OF_CONDUCT.md) before contributing.
 
 ---
 
