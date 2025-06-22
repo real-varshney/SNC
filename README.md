@@ -166,6 +166,8 @@ Got ideas to improve SNC? Fork the repo and open a PR!
 
 This system is designed to be modular — easy to plug in your own executor, cache layer, or analytics.
 
+👉 Read the [CONTRIBUTING](./CONTRIBUTING.md) guide for setup, guidelines, and best practices.
+
 ---
 
 ## 📝 License
