@@ -14,7 +14,7 @@ SNC is a modular, framework-agnostic request orchestration layer designed to man
 
 We welcome contributions in all forms:
 
-- 🧠 **Ideas & Discussions** – Share thoughts in [GitHub Discussions](https://github.com/YOUR-USERNAME/SNC/discussions)
+- 🧠 **Ideas & Discussions** – Share thoughts in [GitHub Discussions](https://github.com/real-varshney/SNC/discussions)
 - 🐛 **Bug Reports** – Found a bug? Open an issue with reproduction steps.
 - 🧹 **Code Improvements** – Improve logic, fix edge cases, or optimize performance.
 - 🪄 **New Features** – Add useful enhancements (e.g., telemetry hooks, offline sync).
